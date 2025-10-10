@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emoji Font WebApp</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="wrap">
+    <section class="row">
+      <div class="card">
+        <!-- Segmented Control -->
+        <div class="segmented-control">
+          <button class="segmented-btn active" id="alphabetMode" data-mode="alphabet">Алфавит</button>
+          <button class="segmented-btn" id="customMode" data-mode="custom">Сам напишу</button>
+        </div>
+
+        <!-- Alphabet Selection -->
+        <div class="select-box" id="alphabetBox">
+          <select id="alphabetSelect" class="t-select" aria-label="Набор символов">
+            <option value="cyr-upper">А–Я (Кириллица, прописные)</option>
+            <option value="cyr-lower">а–я (Кириллица, строчные)</option>
+            <option value="lat-upper">A–Z (Латиница, прописные)</option>
+            <option value="lat-lower">a–z (Латиница, строчные)</option>
+            <option value="digits">Цифры и знаки препинания</option>
+          </select>
+        </div>
+
+        <!-- Custom Phrase Input -->
+        <div class="phrase-box" id="phraseBox" style="display: none;">
+          <input id="customPhrase" class="t-input" placeholder="Введите фразу для рисования..." aria-label="Пользовательская фраза">
+          <div class="muted">Символы будут отображаться в том порядке, в котором они встречаются в фразе</div>
+        </div>
+
+        <div class="toolbar">
+          <button class="t-iconbtn" id="undo" title="Отменить">
+            <img src="assets/undo-icon.svg" alt="Отменить" class="icon-btn">
+          </button>
+          <button class="t-iconbtn" id="redo" title="Повторить">
+            <img src="assets/redo-icon.svg" alt="Повторить" class="icon-btn">
+          </button>
+          <div class="t-range">
+            <input id="brush" type="range" min="5" max="52" value="18">
+          </div>
+          <div class="tool-segmented-control">
+            <button class="tool-segmented-btn active" id="brushMode" data-mode="brush" title="Кисть">
+              <img src="assets/brush-icon.svg" alt="Кисть" class="icon-btn">
+            </button>
+            <button class="tool-segmented-btn" id="eraserMode" data-mode="eraser" title="Ластик">
+              <img src="assets/eraser-icon.svg" alt="Ластик" class="icon-btn">
+            </button>
+          </div>
+          <button class="t-iconbtn" id="clear" title="Очистить">
+            <img src="assets/clear-icon.svg" alt="Очистить" class="icon-btn">
+          </button>
+        </div>
+
+        <div class="board" id="board">
+          <canvas id="guide" width="1024" height="1024" aria-hidden="true"></canvas>
+          <canvas id="pad"   width="1024" height="1024"></canvas>
+        </div>
+
+        <div class="nav">
+          <button type="button" class="t-btn" id="prev">‹</button>
+          <button class="t-btn primary" id="save">
+            <img src="assets/save-icon.svg" alt="Сохранить" class="icon-28">
+            <span id="curLetterLabel">А</span>
+          </button>
+          <button type="button" class="t-btn" id="next">›</button>
+        </div>
+
+        <div class="chips" id="chipRow" aria-label="Символы"></div>
+
+        <div class="actions">
+          <button class="t-btn" id="openPreview">
+            <img src="assets/preview-icon.svg" alt="Превью" class="icon-btn">
+            Превью
+          </button>
+          <button class="t-btn primary" id="create">
+            <span class="btn-icon">
+              <img src="assets/upload-icon.svg" alt="Создать пак" class="icon-28">
+            </span>
+            <span class="btn-text">Получить пак</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Модалка превью -->
+  <div class="modal" id="modalPreview">
+    <div class="sheet">
+      <header>
+        <strong>Превью</strong>
+        <button class="t-iconbtn" id="closePreview" aria-label="Закрыть">✕</button>
+      </header>
+      <input id="previewInput" class="t-input" placeholder="" />
+      <div class="preview-area" id="previewArea" aria-live="polite"></div>
+      <div class="muted">Несохранённые символы показываются системным шрифтом</div>
+    </div>
+  </div>
+
+  <!-- Модалка успеха -->
+  <div class="modal" id="modalSuccess">
+    <div class="sheet">
+      <header>
+        <strong>Готово</strong>
+        <button class="t-iconbtn" id="closeSuccess" aria-label="Закрыть">✕</button>
+      </header>
+      <p style="margin:0 0 8px 0;font-weight:600">Стикерпак успешно получен</p>
+      <div class="link-row">
+        <a id="packLink" href="#" target="_blank" rel="noreferrer">https://t.me/addstickers/mytype_demo</a>
+        <button class="copybtn" id="copyLink" title="Скопировать ссылку">
+          <img src="assets/copy-icon.svg" alt="Скопировать" class="icon-btn">
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- External JavaScript -->
+  <script src="script.js"></script>
+</body>
+</html>
