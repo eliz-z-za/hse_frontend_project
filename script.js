@@ -28,13 +28,15 @@ const PREVIEW_TEXT = {
   'digits': '0123456789 !?.,:;–—()[]{}'
 };
 
+const STORAGE_KEY = 'emojiFontGlyphs';
+
 // ===== GLOBAL STATE =====
 let currentSetKey = 'cyr-upper';
 let letters = [...SETS[currentSetKey]];
 let curIndex = 0;
 const glyphs = new Map();
 let isDirty = false;
-let currentMode = 'alphabet'; // 'alphabet' or 'custom'
+let currentMode = 'alphabet'; 
 let customPhrase = '';
 
 // ===== DOM ELEMENTS =====
@@ -212,12 +214,82 @@ function hasAnySaved() {
   return [...glyphs.keys()].some(ch => letters.includes(ch));
 }
 
+// ===== CANVAS UTILITIES =====
+function isCanvasEmpty() {
+  const imageData = ctx.getImageData(0, 0, pad.width, pad.height);
+  const data = imageData.data;
+  // Проверяем альфа-канал каждого пикселя
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] > 0) return false; // Найден непрозрачный пиксель
+  }
+  return true; // Все пиксели прозрачные
+}
+
+// ===== LOCALSTORAGE PERSISTENCE =====
+function saveGlyphsToStorage() {
+  try {
+    // Конвертируем Map в объект для сохранения
+    const glyphsObject = Object.fromEntries(glyphs);
+    const dataToSave = JSON.stringify(glyphsObject);
+    
+    localStorage.setItem(STORAGE_KEY, dataToSave);
+    return true;
+  } catch (error) {
+    if (error.name === 'QuotaExceededError') {
+      showToast('Недостаточно места для сохранения');
+      console.error('LocalStorage переполнен:', error);
+    } else {
+      console.error('Ошибка сохранения в localStorage:', error);
+    }
+    return false;
+  }
+}
+
+function loadGlyphsFromStorage() {
+  try {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (!savedData) return false;
+    
+    const glyphsObject = JSON.parse(savedData);
+    
+    // Очищаем текущие глифы и загружаем сохраненные
+    glyphs.clear();
+    for (const [char, dataURL] of Object.entries(glyphsObject)) {
+      glyphs.set(char, dataURL);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Ошибка загрузки из localStorage:', error);
+    // При ошибке очищаем поврежденные данные
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      // Игнорируем ошибки при удалении
+    }
+    return false;
+  }
+}
+
 function saveIfDirty() {
   if (!isDirty) return;
-  glyphs.set(letters[curIndex], pad.toDataURL('image/png'));
+  
+  const currentChar = letters[curIndex];
+  const isEmpty = isCanvasEmpty();
+  
+  if (isEmpty && currentChar !== ' ') {
+    // Удаляем пустой символ (кроме пробела)
+    glyphs.delete(currentChar);
+  } else {
+    // Сохраняем/перезаписываем символ
+    glyphs.set(currentChar, pad.toDataURL('image/png'));
+  }
+  
   isDirty = false;
   renderChips();
   updateDownloadButtonState();
+  // Сохраняем изменения в localStorage
+  saveGlyphsToStorage();
 }
 
 // ===== DOWNLOAD ARCHIVE FUNCTIONALITY =====
@@ -679,6 +751,9 @@ function initializeEventListeners() {
 
 // ===== INITIALIZATION =====
 function init() {
+  // Загружаем сохраненные глифы из localStorage ПЕРЕД рендерингом
+  loadGlyphsFromStorage();
+  
   renderChips();
   setLetterLabel();
   resizeCanvases();
