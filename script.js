@@ -65,6 +65,9 @@ const redoBtn = document.getElementById('redo');
 const brushModeBtn = document.getElementById('brushMode');
 const eraserModeBtn = document.getElementById('eraserMode');
 
+// Download archive button
+const downloadArchiveBtn = document.getElementById('downloadArchive');
+
 // ===== DRAWING STATE =====
 let drawing = false;
 let last = null;
@@ -214,6 +217,164 @@ function saveIfDirty() {
   glyphs.set(letters[curIndex], pad.toDataURL('image/png'));
   isDirty = false;
   renderChips();
+  updateDownloadButtonState();
+}
+
+// ===== DOWNLOAD ARCHIVE FUNCTIONALITY =====
+function dataURLtoBlob(dataURL) {
+  const arr = dataURL.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+// Маппинг названий специальных символов
+const SPECIAL_CHAR_NAMES = {
+  ' ': 'пробел',
+  '.': 'точка',
+  ',': 'запятая',
+  ':': 'двоеточие',
+  ';': 'точка с запятой',
+  '!': 'восклицательный знак',
+  '?': 'вопросительный знак',
+  '–': 'короткое тире',
+  '—': 'длинное тире',
+  '(': 'открывающая скобка',
+  ')': 'закрывающая скобка',
+  '[': 'открывающая квадратная скобка',
+  ']': 'закрывающая квадратная скобка',
+  '{': 'открывающая фигурная скобка',
+  '}': 'закрывающая фигурная скобка'
+};
+
+function getCharSetType(char) {
+  // Определяем, к какому набору относится символ
+  if (SETS['cyr-upper'].includes(char)) return 'cyr';
+  if (SETS['cyr-lower'].includes(char)) return 'cyr';
+  if (SETS['lat-upper'].includes(char)) return 'lat';
+  if (SETS['lat-lower'].includes(char)) return 'lat';
+  return null;
+}
+
+function sanitizeFileName(char) {
+  // Для пробела и специальных символов используем их названия
+  if (SPECIAL_CHAR_NAMES[char]) {
+    return SPECIAL_CHAR_NAMES[char];
+  }
+  
+  // Для букв добавляем указание алфавита
+  const setType = getCharSetType(char);
+  if (setType) {
+    return `${char} ${setType}`;
+  }
+  
+  // Для цифр и других символов используем как есть (или код, если нужно)
+  if (/^[0-9]$/.test(char)) {
+    return char;
+  }
+  
+  // Для неизвестных символов используем Unicode код
+  const code = char.charCodeAt(0);
+  return `char_${code}`;
+}
+
+async function downloadGlyphsArchive() {
+  // Проверка наличия сохраненных глифов
+  if (glyphs.size === 0) {
+    showToast('Нет сохраненных символов для скачивания');
+    return;
+  }
+
+  // Проверка поддержки File System Access API
+  if ('showDirectoryPicker' in window) {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      
+      let savedCount = 0;
+      for (const [char, dataURL] of glyphs) {
+        try {
+          const blob = dataURLtoBlob(dataURL);
+          const fileName = `${sanitizeFileName(char)}.png`;
+          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          savedCount++;
+        } catch (error) {
+          console.error(`Ошибка при сохранении файла ${char}.png:`, error);
+        }
+      }
+      
+      if (savedCount > 0) {
+        showToast(`Сохранено ${savedCount} файл(ов)`);
+      } else {
+        showToast('Не удалось сохранить файлы');
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        // Пользователь отменил выбор папки
+        return;
+      }
+      console.error('Ошибка File System Access API:', error);
+      // Fallback на множественное скачивание
+      downloadGlyphsFallback();
+    }
+  } else {
+    // Fallback для браузеров без поддержки File System Access API
+    downloadGlyphsFallback();
+  }
+}
+
+function downloadGlyphsFallback() {
+  if (glyphs.size === 0) {
+    showToast('Нет сохраненных символов для скачивания');
+    return;
+  }
+
+  let downloadCount = 0;
+  const entries = Array.from(glyphs.entries());
+  
+  // Функция для скачивания одного файла с задержкой
+  function downloadNext(index) {
+    if (index >= entries.length) {
+      if (downloadCount > 0) {
+        showToast(`Скачано ${downloadCount} файл(ов)`);
+      }
+      return;
+    }
+
+    const [char, dataURL] = entries[index];
+    try {
+      const blob = dataURLtoBlob(dataURL);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sanitizeFileName(char)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      downloadCount++;
+    } catch (error) {
+      console.error(`Ошибка при скачивании файла ${char}.png:`, error);
+    }
+    
+    // Небольшая задержка между скачиваниями для избежания блокировки браузера
+    setTimeout(() => downloadNext(index + 1), 100);
+  }
+  
+  downloadNext(0);
+}
+
+function updateDownloadButtonState() {
+  if (downloadArchiveBtn) {
+    downloadArchiveBtn.disabled = glyphs.size === 0;
+  }
 }
 
 // ===== DRAWING FUNCTIONS =====
@@ -507,6 +668,13 @@ function initializeEventListeners() {
       resetPad(glyphs.get(letters[curIndex]));
     }
   };
+  
+  // Download archive button
+  if (downloadArchiveBtn) {
+    downloadArchiveBtn.onclick = () => {
+      downloadGlyphsArchive();
+    };
+  }
 }
 
 // ===== INITIALIZATION =====
@@ -515,6 +683,7 @@ function init() {
   setLetterLabel();
   resizeCanvases();
   initializeEventListeners();
+  updateDownloadButtonState();
 }
 
 // Start the application when DOM is ready

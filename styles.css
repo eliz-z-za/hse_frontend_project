@@ -510,6 +510,15 @@ canvas {
   line-height: 22px;
 }
 
+#downloadArchive {
+  grid-column: 1 / -1;
+}
+
+#downloadArchive:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== MODAL COMPONENTS ===== */
 .modal {
   position: fixed;
