@@ -29,6 +29,7 @@ const PREVIEW_TEXT = {
 };
 
 const STORAGE_KEY = 'emojiFontGlyphs';
+const API_BASE_URL = 'https://jsonplaceholder.typicode.com';
 
 // ===== GLOBAL STATE =====
 let currentSetKey = 'cyr-upper';
@@ -271,6 +272,62 @@ function loadGlyphsFromStorage() {
   }
 }
 
+// ===== API INTEGRATION =====
+async function saveGlyphToAPI(char, dataURL) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        char: char,
+        dataURL: dataURL,
+        userId: 1
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    console.log('Symbol saved to API:', char, result);
+  } catch (error) {
+    console.error('Error saving symbol to API:', error);
+    // Не прерываем работу приложения при ошибках API
+  }
+}
+
+async function deleteGlyphFromAPI(char) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/posts/1`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    console.log('Symbol deleted from API:', char);
+  } catch (error) {
+    console.error('Error deleting symbol from API:', error);
+    // Не прерываем работу приложения при ошибках API
+  }
+}
+
+async function getStickerPackLink() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/posts/1`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    // Используем данные из API для формирования ссылки
+    // В реальном API здесь была бы ссылка на стикерпак
+    // Для демонстрации используем статическую ссылку
+    return "https://t.me/addstickers/mytype_demo";
+  } catch (error) {
+    console.error('Error getting sticker pack link from API:', error);
+    // Fallback на статическую ссылку при ошибке
+    return "https://t.me/addstickers/mytype_demo";
+  }
+}
+
 function saveIfDirty() {
   if (!isDirty) return;
   
@@ -280,9 +337,14 @@ function saveIfDirty() {
   if (isEmpty && currentChar !== ' ') {
     // Удаляем пустой символ (кроме пробела)
     glyphs.delete(currentChar);
+    // Отправляем DELETE запрос в API
+    deleteGlyphFromAPI(currentChar);
   } else {
     // Сохраняем/перезаписываем символ
-    glyphs.set(currentChar, pad.toDataURL('image/png'));
+    const dataURL = pad.toDataURL('image/png');
+    glyphs.set(currentChar, dataURL);
+    // Отправляем POST запрос в API
+    saveGlyphToAPI(currentChar, dataURL);
   }
   
   isDirty = false;
@@ -684,11 +746,12 @@ function initializeEventListeners() {
     }
     
     setCreateLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
     
-    const url = "https://t.me/addstickers/mytype_demo";
+    // Получаем ссылку через GET запрос к API
+    const url = await getStickerPackLink();
     packLinkEl.href = url;
     packLinkEl.textContent = url;
+    
     setCreateLoading(false);
     modalSuccess.classList.add('show');
   };
